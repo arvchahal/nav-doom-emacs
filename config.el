@@ -66,6 +66,8 @@
   (treemacs-git-commit-diff-mode t)
   (treemacs-resize-icons 16))
 
+
+
 ;; ─────────────────────────────────────────────────────────
 ;; Auto-open Treemacs on first buffer (only when no DIR arg)
 ;; ─────────────────────────────────────────────────────────
@@ -78,6 +80,13 @@ directory was supplied on the command line."
 
 (add-hook 'doom-after-init-hook #'my/treemacs-on-startup)
 
+;; -------------------------------------------------------
+;; Treemacs icons (all-the-icons theme)
+;; -------------------------------------------------------
+(use-package! treemacs-all-the-icons
+  :after treemacs              ; load only after core Treemacs
+  :config
+  (treemacs-load-theme "all-the-icons"))
 ;; -------------------------------------------------------
 ;; VS Code-like directory opening behavior
 ;; -------------------------------------------------------

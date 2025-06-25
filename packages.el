@@ -16,8 +16,8 @@
 (package! treemacs-icons-dired)
 (package! treemacs-magit)
 (package! all-the-icons)
-(package! all-the-icons-dired)
-
+;; (package! all-the-icons-dired)
+(package! treemacs-all-the-icons) 
 ;; VS Code-like features
 (package! vscode-icon)  ; VS Code icons
 (package! company-box)  ; Better completion UI
