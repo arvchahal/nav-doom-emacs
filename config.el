@@ -1,76 +1,269 @@
 ;;; $DOOMDIR/config.el -*- lexical-binding: t; -*-
 
-;; Place your private configuration here! Remember, you do not need to run 'doom
-;; sync' after modifying this file!
+;; Basic user info (optional)
+;; (setq user-full-name "Your Name"
+;;       user-mail-address "you@example.com")
 
+;; -------------------------------------------------------
+;; Core setup
+;; -------------------------------------------------------
 
-;; Some functionality uses this to identify you, e.g. GPG configuration, email
-;; clients, file templates and snippets. It is optional.
-;; (setq user-full-name "John Doe"
-;;       user-mail-address "john@doe.com")
+;; Start the Emacs server so `emacsclient` commands work
+(after! server
+  (unless (server-running-p)
+    (server-start)))
 
-;; Doom exposes five (optional) variables for controlling fonts in Doom:
-;;
-;; - `doom-font' -- the primary font to use
-;; - `doom-variable-pitch-font' -- a non-monospace font (where applicable)
-;; - `doom-big-font' -- used for `doom-big-font-mode'; use this for
-;;   presentations or streaming.
-;; - `doom-symbol-font' -- for symbols
-;; - `doom-serif-font' -- for the `fixed-pitch-serif' face
-;;
-;; See 'C-h v doom-font' for documentation and more examples of what they
-;; accept. For example:
-;;
-;;(setq doom-font (font-spec :family "Fira Code" :size 12 :weight 'semi-light)
-;;      doom-variable-pitch-font (font-spec :family "Fira Sans" :size 13))
-;;
-;; If you or Emacs can't find your font, use 'M-x describe-font' to look them
-;; up, `M-x eval-region' to execute elisp code, and 'M-x doom/reload-font' to
-;; refresh your font settings. If Emacs still can't find your font, it likely
-;; wasn't installed correctly. Font issues are rarely Doom issues!
+;; Doom Themes
+(use-package doom-themes
+  :config
+  (setq doom-themes-enable-bold t
+        doom-themes-enable-italic t)
+  (setq doom-theme 'doom-city-lights)
+  (load-theme 'doom-city-lights t)
+  ;; Treemacs icons
+  (setq doom-themes-treemacs-theme "doom-one")
+  (doom-themes-treemacs-config))
 
-;; There are two ways to load a theme. Both assume the theme is installed and
-;; available. You can either set `doom-theme' or manually load a theme with the
-;; `load-theme' function. This is the default:
-(setq doom-theme 'doom-one)
+;; -------------------------------------------------------
+;; General settings
+;; -------------------------------------------------------
 
-;; This determines the style of line numbers in effect. If set to `nil', line
-;; numbers are disabled. For relative line numbers, set this to `relative'.
 (setq display-line-numbers-type t)
-
-;; If you use `org' and don't want your org files in the default location below,
-;; change `org-directory'. It must be set before org loads!
 (setq org-directory "~/org/")
 
+;; Auto-save and backup settings (like VS Code)
+(setq auto-save-default t
+      auto-save-timeout 2
+      auto-save-interval 20
+      make-backup-files t
+      backup-directory-alist '(("." . "~/.emacs.d/backups")))
 
-;; Whenever you reconfigure a package, make sure to wrap your config in an
-;; `after!' block, otherwise Doom's defaults may override your settings. E.g.
-;;
-;;   (after! PACKAGE
-;;     (setq x y))
-;;
-;; The exceptions to this rule:
-;;
-;;   - Setting file/directory variables (like `org-directory')
-;;   - Setting variables which explicitly tell you to set them before their
-;;     package is loaded (see 'C-h v VARIABLE' to look up their documentation).
-;;   - Setting doom variables (which start with 'doom-' or '+').
-;;
-;; Here are some additional functions/macros that will help you configure Doom.
-;;
-;; - `load!' for loading external *.el files relative to this one
-;; - `use-package!' for configuring packages
-;; - `after!' for running code after a package has loaded
-;; - `add-load-path!' for adding directories to the `load-path', relative to
-;;   this file. Emacs searches the `load-path' when you load packages with
-;;   `require' or `use-package'.
-;; - `map!' for binding new keys
-;;
-;; To get information about any of these functions/macros, move the cursor over
-;; the highlighted symbol at press 'K' (non-evil users must press 'C-c c k').
-;; This will open documentation for it, including demos of how they are used.
-;; Alternatively, use `C-h o' to look up a symbol (functions, variables, faces,
-;; etc).
-;;
-;; You can also try 'gd' (or 'C-c c d') to jump to their definition and see how
-;; they are implemented.
+;; -------------------------------------------------------
+;; Treemacs Configuration
+;; -------------------------------------------------------
+
+
+(use-package! treemacs
+  :defer t
+  :config
+  (setq treemacs-width 35
+        treemacs-follow-mode t
+        treemacs-filewatch-mode t
+        treemacs-git-mode 'deferred
+        treemacs-collapse-dirs 3
+        treemacs-persist-file
+        (expand-file-name ".cache/treemacs-persist" user-emacs-directory)
+        treemacs-is-never-other-window nil
+        treemacs-goto-tag-strategy 'refetch-index)
+
+  ;; VS-Code-like keys
+  (global-set-key (kbd "C-\\") #'treemacs)
+  (global-set-key (kbd "C-c t") #'treemacs)
+
+  ;; Auto-refresh, extras
+  (treemacs-filewatch-mode  t)
+  (treemacs-fringe-indicator-mode t)
+  (treemacs-git-commit-diff-mode t)
+  (treemacs-resize-icons 16))
+
+;; ─────────────────────────────────────────────────────────
+;; Auto-open Treemacs on first buffer (only when no DIR arg)
+;; ─────────────────────────────────────────────────────────
+(defun my/treemacs-on-startup ()
+  "Open Treemacs after Doom has finished starting, unless a
+directory was supplied on the command line."
+  (unless my/initial-directory
+    (require 'treemacs)                ; guarantees the package is loaded
+    (save-selected-window (treemacs))))
+
+(add-hook 'doom-after-init-hook #'my/treemacs-on-startup)
+
+;; -------------------------------------------------------
+;; VS Code-like directory opening behavior
+;; -------------------------------------------------------
+
+(defvar my/initial-directory nil
+  "Directory Emacs should open on startup when a path is supplied
+either on the command line or via emacsclient.")
+
+;; Handle both regular Emacs and emacsclient invocations
+(defun my/handle-directory-arg ()
+  "Handle directory argument from command line."
+  (let ((args (or command-line-args-left
+                  (and (boundp 'server-buffer-clients)
+                       (cdr command-line-args)))))
+    (when args
+      (dolist (arg args)
+        (when (and arg (stringp arg) (file-directory-p arg)
+                   (not (string-match-p "^-" arg))) ; skip options
+          (setq my/initial-directory (expand-file-name arg))
+          (setq command-line-args-left
+                (delete arg command-line-args-left))
+          (cl-return t))))))               ; needs (require 'cl-lib)
+
+;; For regular emacs startup
+(add-to-list 'command-line-functions #'my/handle-directory-arg)
+
+;; For emacsclient frames
+(defun my/handle-emacsclient-directory (&optional dir)
+  "Handle directory opening from emacsclient."
+  (when (and dir (file-directory-p dir))
+    (setq default-directory (expand-file-name dir))
+    (cd   default-directory)
+    (require 'treemacs)
+    (treemacs-select-directory default-directory)
+    (treemacs-display-current-project-exclusively)
+    (when (featurep 'projectile)
+      (projectile-add-known-project default-directory)
+      (run-at-time "0.1 sec" nil #'projectile-find-file))))
+
+(add-hook 'server-visit-hook
+          (lambda ()
+            (when (and buffer-file-name
+                       (file-directory-p buffer-file-name))
+              (my/handle-emacsclient-directory buffer-file-name))))
+
+;; Set up initial workspace after Doom loads
+(add-hook! 'doom-after-init-hook
+  (defun my/setup-initial-workspace ()
+    "Open the supplied directory (if any) after Doom finishes."
+    (when my/initial-directory
+      (setq default-directory my/initial-directory)
+      (cd   my/initial-directory)
+      (require 'treemacs)
+      (treemacs-select-directory my/initial-directory)
+      (treemacs-display-current-project-exclusively)
+      (when (featurep 'projectile)
+        (projectile-add-known-project my/initial-directory)
+        (run-at-time "0.1 sec" nil #'projectile-find-file)))))
+
+;; Hook for emacsclient frames
+(add-hook 'server-visit-hook
+          (lambda ()
+            (when (and buffer-file-name
+                       (file-directory-p buffer-file-name))
+              (my/handle-emacsclient-directory buffer-file-name))))
+
+;; Setup initial workspace after Doom loads
+(add-hook! 'doom-after-init-hook
+  (defun my/setup-initial-workspace ()
+    "Set up the initial workspace with Treemacs if directory was provided."
+    (when my/initial-directory
+      (cd my/initial-directory)
+      (setq default-directory my/initial-directory)
+      
+      ;; Ensure treemacs is loaded and open it
+      (require 'treemacs)
+      (treemacs-select-directory my/initial-directory)
+      (treemacs-display-current-project-exclusively)
+      
+      ;; Add to projectile
+      (when (featurep 'projectile)
+        (projectile-add-known-project my/initial-directory)
+        ;; Open file finder after a short delay
+        (run-at-time "0.1 sec" nil #'projectile-find-file)))))
+
+
+
+;; -------------------------------------------------------
+;; VS Code-like features
+;; -------------------------------------------------------
+
+;; Command palette (like Ctrl+Shift+P in VS Code)
+(map! :leader
+      :desc "M-x" "SPC" #'execute-extended-command
+      :desc "Find file in project" "p f" #'projectile-find-file
+      :desc "Search project" "p s" #'projectile-ripgrep)
+
+;; Quick file switching (like Ctrl+P in VS Code)
+(map! :n "C-p" #'projectile-find-file
+      :i "C-p" #'projectile-find-file)
+
+;; Multiple cursors support
+(use-package! evil-mc
+  :config
+  (global-evil-mc-mode 1))
+
+;; Better search (like Ctrl+Shift+F in VS Code)
+(map! :n "C-S-f" #'projectile-ripgrep
+      :i "C-S-f" #'projectile-ripgrep)
+
+;; -------------------------------------------------------
+;; File explorer enhancements
+;; -------------------------------------------------------
+
+;; Make dired more like VS Code's file explorer
+(use-package! dired
+  :config
+  (setq dired-dwim-target t
+        dired-recursive-copies 'always
+        dired-recursive-deletes 'always
+        dired-listing-switches "-alh --group-directories-first"))
+
+;; -------------------------------------------------------
+;; Languages / LSP
+;; -------------------------------------------------------
+
+;; Enable LSP for VS Code-like intellisense
+(after! lsp-mode
+  (setq lsp-enable-symbol-highlighting t
+        lsp-ui-doc-enable t
+        lsp-ui-doc-show-with-cursor t
+        lsp-ui-sideline-enable t
+        lsp-ui-sideline-show-hover t
+        lsp-ui-sideline-show-diagnostics t))
+
+(use-package! protobuf-mode
+  :defer t)
+
+;; -------------------------------------------------------
+;; Terminal integration
+;; -------------------------------------------------------
+
+;; VS Code-like integrated terminal
+(map! :leader
+      :desc "Open terminal here" "o t" #'+vterm/here
+      :desc "Toggle terminal" "t t" #'+vterm/toggle)
+
+;; -------------------------------------------------------
+;; Additional keybindings
+;; -------------------------------------------------------
+
+;; File operations
+(map! "C-s" #'save-buffer
+      "C-S-s" #'write-file
+      "C-o" #'find-file
+      "C-w" #'kill-current-buffer
+      "C-S-w" #'delete-window)
+
+;; Tab-like buffer switching
+(map! :n "gt" #'next-buffer
+      :n "gT" #'previous-buffer)
+
+;; Quick actions
+(map! :leader
+      :desc "Format buffer" "c f" #'+format/buffer
+      :desc "Comment line" "c c" #'comment-line)
+
+;; -------------------------------------------------------
+;; Window management
+;; -------------------------------------------------------
+
+;; VS Code-like window splitting
+(map! "C-\\" #'split-window-right
+      "C-|" #'split-window-below)
+
+;; -------------------------------------------------------
+;; Startup optimization
+;; -------------------------------------------------------
+
+;; Faster startup
+(setq gc-cons-threshold 100000000
+      read-process-output-max (* 1024 1024))
+
+;; Reset after startup
+(add-hook! 'emacs-startup-hook
+  (setq gc-cons-threshold 16777216
+        read-process-output-max (* 1024 1024)))
+
+;;; config.el ends here
